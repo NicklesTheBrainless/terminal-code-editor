@@ -7,7 +7,7 @@ char *workingDir;
 char **dirFiles;
 int dirFilesCount;
 
-int openFileI = 0;
+int openFileI = 1;
 int selectedFileI = 0;
 
 bool showLineNums = true;
@@ -69,6 +69,7 @@ int main() {
     char c;
     while (!quit)
     {
+
         int result = read(STDIN_FILENO, &c, 1);
         if (result == -1)
             break;

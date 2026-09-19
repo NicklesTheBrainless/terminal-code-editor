@@ -1,5 +1,7 @@
 #include "write_mode.h"
 
+int getNewLineIndentation(Row *row);
+
 void handleInputWriteMode(char c) {
 
     bool selectionjustDeleted = false;
@@ -22,9 +24,9 @@ void handleInputWriteMode(char c) {
     Row r = rows[cy];
 
     if (c == '\n') {
-
+        int indentSpaces = getNewLineIndentation(&r);
         Row newRow;
-        int newLength = r.length - cx;
+        int newLength = r.length + indentSpaces - cx;
 
         newRow.cap = newLength + 64;
         newRow.length = newLength;
@@ -33,7 +35,8 @@ void handleInputWriteMode(char c) {
             ERROR_EXIT("malloc failed!");
         }
 
-        memcpy(newRow.chars, r.chars + cx, newLength);
+        memset(newRow.chars, ' ', indentSpaces);
+        memcpy(newRow.chars + indentSpaces, r.chars + cx, newLength);
 
         r.length = cx;
         rowsCount++;
@@ -52,7 +55,7 @@ void handleInputWriteMode(char c) {
         rows[cy + 1] = newRow;
 
         cy++;
-        cx = 0;
+        cx = indentSpaces;
         return;
     }
 
@@ -102,5 +105,28 @@ void handleInputWriteMode(char c) {
 
     writeToRow(cx, cy, &c, 1);
     cx++;
+}
+
+int getNewLineIndentation(Row *row)
+{
+    int indentSpaces = 0;
+    while (indentSpaces < row->length)
+    {
+        if (row->chars[indentSpaces] == ' ')
+            indentSpaces++;
+        else
+            break;
+    }
+
+    int last = row->length - 1;
+    while (last >= 0 && row->chars[last] == ' ')
+    {
+        last--;
+    }
+
+    if (last >= 0 && row->chars[last] == '{')
+        indentSpaces += 4;
+
+    return indentSpaces;
 }
 

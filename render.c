@@ -22,7 +22,7 @@ int buffLength;
 int buffCap;
 
 int tw, th = 0;
-volatile sig_atomic_t terminalResized = 0;
+volatile sig_atomic_t terminalResized = 1;
 
 char* shortenWorkingDirPath();
 void getTerminalSize(int *width, int *height);
@@ -97,7 +97,8 @@ void drawWithFilesys() {
     buffAppendN(shortWdir, wdirLength);
 
     int emptySpace = FILESYS_W - (wdirLength+2);
-    buffFillAppend(' ', emptySpace);
+    if (emptySpace > 0)
+        buffFillAppend(' ', emptySpace);
 
     buffAppend(borderColor);
     buffAppend("│ ");
@@ -125,7 +126,8 @@ void drawWithFilesys() {
     {
         buffAppend(colorReset);
         
-        buffFillAppend(' ', openFileSpace - openFileLength);
+        if (openFileSpace > openFileLength)
+            buffFillAppend(' ', openFileSpace - openFileLength);
         buffAppend(borderColor);
         buffAppend("│ ");
         if (filesysMode)
@@ -175,7 +177,8 @@ void drawWithFilesys() {
             buffAppend(dirFiles[i+1]);
             buffAppend(colorReset);
             emptySpace = FILESYS_W - (strlen(dirFiles[i+1]) + 3);
-            buffFillAppend(' ', emptySpace);
+            if (emptySpace > 0)
+                buffFillAppend(' ', emptySpace);
         } else {
             buffFillAppend(' ', FILESYS_W);
         }
@@ -197,8 +200,8 @@ void drawWithFilesys() {
             buffAppend(colorReset);
         }
 
-        int li = rowOffset + i;
-        Row r = rows[li];
+        int ri = rowOffset + i;
+        Row r = rows[ri];
 
         int textSpace = tw - WITHFILESYS_OFFSET_X - lnOff;
         int visibleLength = MIN(r.length, textSpace);
@@ -216,25 +219,25 @@ void drawWithFilesys() {
             int highlightEnd = 0;
             bool highlighted = false;
 
-            if (li == y1 && li == y2)
+            if (ri == y1 && ri == y2)
             {
                 highlightStart = MIN(x1, visibleLength);
                 highlightEnd = MIN(x2+1, visibleLength);
                 highlighted = true;
             }
-            else if (li == y1)
+            else if (ri == y1)
             {
                 highlightStart = MIN(x1, visibleLength);
                 highlightEnd = visibleLength;
                 highlighted = true;
             }
-            else if (li > y1 && li < y2)
+            else if (ri > y1 && ri < y2)
             {
                 highlightStart = 0;
                 highlightEnd = visibleLength;
                 highlighted = true;
             }
-            else if (li == y2)
+            else if (ri == y2)
             {
                 highlightStart = 0;
                 highlightEnd = MIN(x2+1, visibleLength);
@@ -266,7 +269,6 @@ void drawWithFilesys() {
     buffAppend("\x1b[?25h");
 
     write(STDOUT_FILENO, buffChars, buffLength);
-
     fflush(stdout);
 }
 
