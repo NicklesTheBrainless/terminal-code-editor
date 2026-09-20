@@ -109,7 +109,6 @@ void writeToRow(int x, int y, char *s, int n) {
         memmove(r.chars + x + n, r.chars + x, r.length - x);
     memcpy(r.chars + x, s, n);
     r.length += n;
-
     rows[y] = r;
 }
 

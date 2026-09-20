@@ -96,6 +96,64 @@ void handleInputWriteMode(char c) {
         return;
     }
 
+    if (c == '}')
+    {
+        bool onlySpaces = true;
+        for (int i = 0; i < r.length; i++)
+        {
+            if (r.chars[i] != ' ') {
+                onlySpaces = false;
+                break;
+            }
+        }
+
+        if (onlySpaces)
+        {
+            int openBraceRowI = -1;
+            int currentBracesLevel = -1;
+            for (int ri = cy -1; ri >= 0; ri--)
+            {
+                Row cr = rows[ri];
+                for (int i = 0; i < cr.length; i++)
+                {
+                    if (cr.chars[i] == '{')
+                        currentBracesLevel++;
+                    else if (cr.chars[i] == '}')
+                        currentBracesLevel--;
+
+                    if (currentBracesLevel == 0)
+                        break;
+                }
+                if (currentBracesLevel == 0)
+                {
+                    openBraceRowI = ri;
+                    break;
+                }  
+            }
+
+            int indentSpaces = 0;
+            if (openBraceRowI == -1)
+            {
+                indentSpaces = 0;
+            } else {
+                while (indentSpaces < rows[openBraceRowI].length)
+                {
+                    if (rows[openBraceRowI].chars[indentSpaces] == ' ')
+                        indentSpaces++;
+                    else
+                        break;
+                }
+            }
+            
+            writeToRow(indentSpaces, cy, "}", 1);
+            r.length = indentSpaces + 1;
+            cx = indentSpaces + 1;
+            rows[cy] = r;
+            return;
+        }
+    }
+    
+
     if (c == '\t')
     {
         writeToRow(cx, cy, "    ", 4);

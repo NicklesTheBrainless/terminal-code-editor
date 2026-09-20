@@ -99,6 +99,9 @@ void handleSuperKey(char c) {
         getNormalizedSelection(&startX, &startY, &endX, &endY);
         endX++;
         deleteText(startX, startY, endX, endY);
+        cx = startX;
+        selected1 = false;
+        selected2 = false;
         break;
 
     case 'f':
