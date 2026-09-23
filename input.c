@@ -224,7 +224,7 @@ void moveCursor(ArrowKey ak) {
 void updateRowOffset() {
     int subtractY = 1;
     if (withFilesys)
-        subtractY = WITHFILESYS_OFFSET_Y + 1;
+        subtractY = BAR_H + 1;
     
     if (cy - rowOffset < MIN_CURSOR_Y_SIDE_DISTANCE)
     {
@@ -253,7 +253,6 @@ void handleAlt(char c) {
     case 's':
         saveRowsAsFile(dirFiles[openFileI], rows, rowsCount);
         break;
-
     case 'r':
         if (withFilesys)
             renamingFile = true;
@@ -263,7 +262,6 @@ void handleAlt(char c) {
         withFilesys = !withFilesys;
         filesysMode = withFilesys;
         break;
-
     case 'g':
         filesysMode = !filesysMode;
         break;
@@ -271,9 +269,11 @@ void handleAlt(char c) {
     case 'i':
         showInfoText = !showInfoText;
         break;
-
     case 'l':
         showLineNums = !showLineNums;
+        break;
+    case 'o':
+        showOpenFile = !showOpenFile;
         break;
     }
 }

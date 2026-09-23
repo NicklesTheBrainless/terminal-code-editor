@@ -15,6 +15,8 @@ extern bool showLineNums;
 extern bool showInfoText;
 extern char infoText[512];
 
+extern bool showOpenFile;
+
 extern bool withFilesys;
 extern bool filesysMode;
 extern bool superMode;

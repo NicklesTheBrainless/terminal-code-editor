@@ -14,6 +14,8 @@ bool showLineNums = true;
 bool showInfoText = true;
 char infoText[512];
 
+bool showOpenFile = true;
+
 bool withFilesys = true;
 bool filesysMode = false;
 bool superMode = false;

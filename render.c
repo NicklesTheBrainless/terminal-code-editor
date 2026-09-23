@@ -24,6 +24,11 @@ int buffCap;
 int tw, th = 0;
 volatile sig_atomic_t terminalResized = 1;
 
+void drawRow(int i, int xOff);
+bool drawBar(int xOff, int *barWidth, int *borderX);
+void drawFileSide(int fi);
+void startDrawing();
+void completeDrawing(int barXOff, int xOff, int yOff);
 char* shortenWorkingDirPath();
 void getTerminalSize(int *width, int *height);
 void buffAlloc();
@@ -42,37 +47,33 @@ void draw() {
     buffAlloc();
     buffAppend("\x1b[2J\x1b[H");
 
-    int lnOff = showLineNums ? LINENUM_W : 0;
+    int barWidth;
+    int borderX = -1;
+    if (drawBar(FILESYS_W + 2, &barWidth, &borderX))
+    {
+        buffAppend(borderColor);
+        for (int i = 0; i < barWidth; i++) {
+           if (i == borderX)
+                buffAppend("┴");
+          else
+                buffAppend("─");
+        }
+    }
+    
     for (int i = 0; i < th; i++) {
         if (i > 0)
             buffAppend("\n");
 
         if (rowOffset+i >= rowsCount)
             break;
-
         
-        if (showLineNums)
-        {
-            char numBuffer[5];
-            sprintf(numBuffer, "%3d", (rowOffset+i+1) % 1000);
-            buffAppend(lineNumColor);
-            buffAppendN(numBuffer, 3);
-            buffAppend(" \x1b[0m");
-        } else {
-            buffAppend(colorReset);
-        }
-        
-
-        Row r = rows[rowOffset + i];
-        int textSpace = tw - lnOff;
-        if (r.length > textSpace)
-            buffAppendN(r.chars, textSpace);
-        else
-            buffAppendN(r.chars, r.length);
+        drawRow(i, 0);
     }
 
+    int offX = showLineNums ? LINENUM_W : 0;
+
     char cursorMoveBuffer[64];
-    sprintf(cursorMoveBuffer, "\x1b[%d;%dH", cy - rowOffset + 1, cx + lnOff + 1);
+    sprintf(cursorMoveBuffer, "\x1b[%d;%dH", cy - rowOffset + 1, cx + offX + 1);
     buffAppend(cursorMoveBuffer);
 
     write(STDOUT_FILENO, buffChars, buffLength);
@@ -81,14 +82,7 @@ void draw() {
 
 void drawWithFilesys() {
 
-    if (terminalResized == 1)
-    {
-        getTerminalSize(&tw, &th);
-        terminalResized = 0;
-    }
-
-    buffAlloc();
-    buffAppend("\x1b[2J\x1b[H\x1b[?25l");
+    startDrawing();
 
     buffAppend(workingDirColor);
     buffAppend("🗀 ");
@@ -103,33 +97,176 @@ void drawWithFilesys() {
     buffAppend(borderColor);
     buffAppend("│ ");
 
-    int barWidth = tw - (FILESYS_W+1);
-    int openFileSpace = barWidth/3;
-    int infoTextSpace = barWidth - openFileSpace - 2;
+    int barWidth = -1;
+    int borderX = -1;
+    bool drewBar = drawBar(FILESYS_W + 2, &barWidth, &borderX);
 
-    if (!showInfoText)
-        openFileSpace = barWidth;
+    if (drewBar)
+    {
+        buffAppend(dirFileColor);
+        buffAppend("├─ ");
+        if (selectedFileI == 0)
+            buffAppend(selectedFileBackground);
+        buffAppend(dirFiles[0]);
+        buffAppend(colorReset);
 
-    int openFileLength;
-    buffAppend(openFileColor);
-    if (renamingFile)
-    {        
-        buffAppend(renamingFileBackground);
-        buffAppendN(renameFileBuffer, renameFileBufferI);
-        openFileLength = renameFileBufferI;
+        emptySpace = FILESYS_W - (strlen(dirFiles[0]) + 3);
+        if (emptySpace > 0)
+            buffFillAppend(' ', emptySpace);
+
+        buffAppend(borderColor);
+        buffAppend("├");
+        for (int i = 0; i < barWidth; i++) {
+            if (i == borderX-1)
+                buffAppend("┴");
+            else
+                buffAppend("─");
+        }
+
+        for (int i = 0; i < th - BAR_H; i++) {
+            
+            buffAppend("\n");
+            drawFileSide(i + 1);
+            if (rowOffset+i >= rowsCount)
+                continue;
+            drawRow(i, FILESYS_W + 1);
+        }
+
     } else {
-        buffAppendN(dirFiles[openFileI], MIN(strlen(dirFiles[openFileI]), openFileSpace));
-        openFileLength = strlen(dirFiles[openFileI]);
+        for (int i = 0; i < th; i++) {
+            if (i > 0)
+            {
+                buffAppend("\n");
+                drawFileSide(i);
+            }
+            
+            if (rowOffset+i >= rowsCount)
+                continue;
+            drawRow(i, FILESYS_W + 1);
+        }
+    }
+    
+    int offX = showLineNums ? (FILESYS_W + LINENUM_W + 1) : (FILESYS_W + 2);
+    int offY = barWidth > 0 ? BAR_H : 0;
+    completeDrawing(FILESYS_W + 2, offX, offY);
+}
+
+void drawRow(int i, int xOff) {
+
+    int ri = rowOffset + i;
+    Row r = rows[ri];
+
+    if (showLineNums)
+    {
+        char numBuffer[5];
+        sprintf(numBuffer, "%3d", (ri + 1) % 1000);
+        buffAppend(lineNumColor);
+        buffAppendN(numBuffer, 3);
+        buffAppend(" \x1b[0m");
+        xOff += 5;
+    } else {
+        buffAppend(colorReset);
+    }
+
+    int textSpace = tw - xOff;
+    int visibleLength = MIN(r.length, textSpace);
+
+    if (!selected1 || !selected2)
+    {
+        buffAppendN(r.chars, visibleLength);
+    }
+    else
+    {
+        int x1, y1, x2, y2;
+        getNormalizedSelection(&x1, &y1, &x2, &y2);
+
+        int highlightStart = 0;
+        int highlightEnd = 0;
+        bool highlighted = false;
+
+        if (ri == y1 && ri == y2)
+        {
+            highlightStart = MIN(x1, visibleLength);
+            highlightEnd = MIN(x2+1, visibleLength);
+            highlighted = true;
+        }
+        else if (ri == y1)
+        {
+            highlightStart = MIN(x1, visibleLength);
+            highlightEnd = visibleLength;
+            highlighted = true;
+        }
+        else if (ri > y1 && ri < y2)
+        {
+            highlightStart = 0;
+            highlightEnd = visibleLength;
+            highlighted = true;
+        }
+        else if (ri == y2)
+        {
+            highlightStart = 0;
+            highlightEnd = MIN(x2+1, visibleLength);
+            highlighted = true;
+        }
+
+        if (!highlighted)
+        {
+            buffAppendN(r.chars, visibleLength);
+        }
+        else
+        {
+            buffAppendN(r.chars, highlightStart);
+            buffAppend(selectionBackground);
+            buffAppendN(r.chars + highlightStart, highlightEnd - highlightStart);
+            buffAppend(colorReset);
+            buffAppendN(r.chars + highlightEnd, visibleLength - highlightEnd);
+        }
+    }
+}
+
+bool drawBar(int xOff, int *pBarWidth, int *pBorderX) {
+
+    int barWidth = tw - xOff;
+    int openFileSpace;
+    int infoTextSpace;
+    if (showOpenFile && showInfoText)
+    {
+        openFileSpace = barWidth/3;
+        infoTextSpace = barWidth - openFileSpace - 2;
+        *pBorderX = openFileSpace + 2;
+    } else if (showOpenFile && !showInfoText)
+        openFileSpace = barWidth;
+    else if (!showOpenFile && showInfoText)
+        infoTextSpace = barWidth;
+    else
+        return false;
+    *pBarWidth = barWidth;
+    
+    if (showOpenFile)
+    {
+        int openFileLength;
+        buffAppend(openFileColor);
+        if (renamingFile)
+        {        
+            buffAppend(renamingFileBackground);
+            buffAppendN(renameFileBuffer, renameFileBufferI);
+            openFileLength = renameFileBufferI;
+        } else {
+            buffAppendN(dirFiles[openFileI], MIN(strlen(dirFiles[openFileI]), openFileSpace));
+            openFileLength = strlen(dirFiles[openFileI]);
+        }
+
+        if (showInfoText)
+        {
+            if (openFileSpace > openFileLength)
+            buffFillAppend(' ', openFileSpace - openFileLength);
+            buffAppend(borderColor);
+            buffAppend("│ ");
+        }
     }
 
     if (showInfoText)
     {
-        buffAppend(colorReset);
-        
-        if (openFileSpace > openFileLength)
-            buffFillAppend(' ', openFileSpace - openFileLength);
-        buffAppend(borderColor);
-        buffAppend("│ ");
         if (filesysMode)
         {
             buffAppend(filesysModeColor);
@@ -140,137 +277,57 @@ void drawWithFilesys() {
                 buffAppend(writeModeColor);
         }
         buffAppendN(infoText, MIN(strlen(infoText), infoTextSpace));
-        buffAppend("\n");
-    } else {
-        buffAppend("\x1b[0m\n");
     }
 
-    buffAppend(dirFileColor);
-    buffAppend("├─ ");
-    if (selectedFileI == 0)
-        buffAppend(selectedFileBackground);
-    buffAppend(dirFiles[0]);
-    buffAppend(colorReset);
+    buffAppend("\x1b[0m\n");
+    return true;
+}
 
-    emptySpace = FILESYS_W - (strlen(dirFiles[0]) + 3);
-    buffFillAppend(' ', emptySpace);
+void drawFileSide(int fi) {
+    if (fi < dirFilesCount)
+    {
+        buffAppend(dirFileColor);
+        buffAppend("├─ ");
+        if (selectedFileI == fi)
+            buffAppend(selectedFileBackground);
+        buffAppend(dirFiles[fi]);
+        buffAppend(colorReset);
+        int emptySpace = FILESYS_W - (strlen(dirFiles[fi]) + 3);
+        if (emptySpace > 0)
+            buffFillAppend(' ', emptySpace);
+    } else {
+        buffFillAppend(' ', FILESYS_W);
+    }
 
     buffAppend(borderColor);
-    buffAppend("├");
-    for (int i = 0; i < barWidth; i++) {
-        if (i == openFileSpace+1)
-            buffAppend("┴");
-        else
-            buffAppend("─");
+    buffAppend("│ ");
+}
+
+void startDrawing() {
+    if (terminalResized == 1)
+    {
+        getTerminalSize(&tw, &th);
+        terminalResized = 0;
     }
 
-    int lnOff = showLineNums ? LINENUM_W : 0;
-    for (int i = 0; i < th-WITHFILESYS_OFFSET_Y; i++) {
-        buffAppend("\n");
+    buffAlloc();
+    buffAppend("\x1b[2J\x1b[H\x1b[?25l");
+}
 
-        if (i+1 < dirFilesCount)
-        {
-            buffAppend(dirFileColor);
-            buffAppend("├─ ");
-            if (selectedFileI == i+1)
-                buffAppend(selectedFileBackground);
-            buffAppend(dirFiles[i+1]);
-            buffAppend(colorReset);
-            emptySpace = FILESYS_W - (strlen(dirFiles[i+1]) + 3);
-            if (emptySpace > 0)
-                buffFillAppend(' ', emptySpace);
-        } else {
-            buffFillAppend(' ', FILESYS_W);
-        }
-        
-        buffAppend(borderColor);
-        buffAppend("│ ");
-
-        if (rowOffset+i >= rowsCount)
-            continue;
-
-        if (showLineNums)
-        {
-            char numBuffer[5];
-            sprintf(numBuffer, "%3d", (rowOffset+i+1) % 1000);
-            buffAppend(lineNumColor);
-            buffAppendN(numBuffer, 3);
-            buffAppend(" \x1b[0m");
-        } else {
-            buffAppend(colorReset);
-        }
-
-        int ri = rowOffset + i;
-        Row r = rows[ri];
-
-        int textSpace = tw - WITHFILESYS_OFFSET_X - lnOff;
-        int visibleLength = MIN(r.length, textSpace);
-
-        if (!selected1 || !selected2)
-        {
-            buffAppendN(r.chars, visibleLength);
-        }
-        else
-        {
-            int x1, y1, x2, y2;
-            getNormalizedSelection(&x1, &y1, &x2, &y2);
-
-            int highlightStart = 0;
-            int highlightEnd = 0;
-            bool highlighted = false;
-
-            if (ri == y1 && ri == y2)
-            {
-                highlightStart = MIN(x1, visibleLength);
-                highlightEnd = MIN(x2+1, visibleLength);
-                highlighted = true;
-            }
-            else if (ri == y1)
-            {
-                highlightStart = MIN(x1, visibleLength);
-                highlightEnd = visibleLength;
-                highlighted = true;
-            }
-            else if (ri > y1 && ri < y2)
-            {
-                highlightStart = 0;
-                highlightEnd = visibleLength;
-                highlighted = true;
-            }
-            else if (ri == y2)
-            {
-                highlightStart = 0;
-                highlightEnd = MIN(x2+1, visibleLength);
-                highlighted = true;
-            }
-
-            if (!highlighted)
-            {
-                buffAppendN(r.chars, visibleLength);
-            }
-            else
-            {
-                buffAppendN(r.chars, highlightStart);
-                buffAppend(selectionBackground);
-                buffAppendN(r.chars + highlightStart, highlightEnd - highlightStart);
-                buffAppend(colorReset);
-                buffAppendN(r.chars + highlightEnd, visibleLength - highlightEnd);
-            }
-        }
-    }
-        
-
+void completeDrawing(int barXOff, int xOff, int yOff) {
     char cursorMoveBuffer[64];
     if (renamingFile)
         sprintf(cursorMoveBuffer, "\x1b[1;%dH", FILESYS_W + 3 + renameFileBufferI);
     else
-        sprintf(cursorMoveBuffer, "\x1b[%d;%dH", cy - rowOffset + WITHFILESYS_OFFSET_Y + 1, cx + WITHFILESYS_OFFSET_X + 1);
+        sprintf(cursorMoveBuffer, "\x1b[%d;%dH", cy - rowOffset + yOff + 1, cx + xOff + 1);
     buffAppend(cursorMoveBuffer);
     buffAppend("\x1b[?25h");
 
     write(STDOUT_FILENO, buffChars, buffLength);
     fflush(stdout);
 }
+
+
 
 char* shortenWorkingDirPath() {
 

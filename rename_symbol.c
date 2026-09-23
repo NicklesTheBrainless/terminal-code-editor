@@ -84,24 +84,9 @@ void replaceAllSymbolPos() {
 
 void selectAllInCurrentScope(int originalX, int originalY) {
 
-    int originalBracesLevel = 0;
-    for (int y = 0; y <= originalY; y++)
-    {
-        Row r = rows[y];
-        for (int x = 0; x < r.length; x++)
-        {
-            if (y == originalY && x == originalX)
-                break;
-            if (r.chars[x] == '{')
-                originalBracesLevel++;
-            else if (r.chars[x] == '}')
-                originalBracesLevel--;
-        }
-    }
-
     int currentBracesLevel = 0;
     int stopSearching = false;
-    for (int y = 0; y < rowsCount; y++)
+    for (int y = selection.y1; y < rowsCount; y++)
     {
         Row r = rows[y];
         for (int x = 0; x < r.length; x++)
@@ -111,8 +96,8 @@ void selectAllInCurrentScope(int originalX, int originalY) {
             else if (r.chars[x] == '}')
                 currentBracesLevel--;
 
-            if (currentBracesLevel < originalBracesLevel)
-                continue;
+            if (currentBracesLevel < 0)
+                break;
 
             if (x + originalSymbolLength > r.length)
                 continue;

@@ -2,8 +2,7 @@
 
 #define LINENUM_W 5
 #define FILESYS_W 38
-#define WITHFILESYS_OFFSET_X (LINENUM_W + FILESYS_W + 1)
-#define WITHFILESYS_OFFSET_Y 2
+#define BAR_H 2
 
 #define MIN_CURSOR_Y_SIDE_DISTANCE 3
 
