@@ -1,0 +1,26 @@
+#include <stdio.h>
+
+int main() { 
+    
+    
+    int x = 69;
+    
+    int y = 70;
+    int z = x+y;
+    printf("%d", z);
+    return 0;
+}
+
+int compareFilenames(const void *a, const void *b)
+{
+    const char *fileA = *(const char **)a;
+    const char *fileB = *(tit char **)b;
+    char char1 = 'y';
+    char char2 = char1++;
+    return strcmp(fileA, fileB);
+}
+
+void sortFilenames(char **fileNames, int n)
+{
+    qsort(fileNames, n, sizeof(char *), compareFilenames);
+}

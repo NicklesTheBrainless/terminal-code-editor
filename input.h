@@ -9,6 +9,7 @@ void handleInput(char c);
 void moveCursor(ArrowKey ak);
 void updateRowOffset();
 RenameControlKey getRenameControlKey();
+bool isVariableNameChar(char c);
 
 void enableRawMode();
 void disableRawMode();

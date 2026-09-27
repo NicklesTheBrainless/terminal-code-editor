@@ -12,6 +12,9 @@
 #define openFileColor "\x1b[1;34m"
 #define lineNumColor "\x1b[38;5;242m"
 #define selectionBackground "\x1b[48;5;153m"
+#define renameSymbolBackground "\x1b[48;5;152m"
+
+#define colorSwitch "\x1b[7m"
 
 #define writeModeColor "\x1b[38;5;118m"
 #define superModeColor "\x1b[38;5;227m"
@@ -28,10 +31,9 @@ void drawRow(int i, int xOff);
 bool drawBar(int xOff, int *barWidth, int *borderX);
 void drawFileSide(int fi);
 void startDrawing();
-void completeDrawing(int barXOff, int xOff, int yOff);
+void completeDrawing(int xOff, int yOff);
 char* shortenWorkingDirPath();
 void getTerminalSize(int *width, int *height);
-void buffAlloc();
 void buffAppend(char *str);
 void buffAppendN(char *str, int length);
 void buffFillAppend(char c, int length);
@@ -44,16 +46,16 @@ void draw() {
         terminalResized = 0;
     }
 
-    buffAlloc();
+    buffLength = 0;
     buffAppend("\x1b[2J\x1b[H");
 
     int barWidth;
     int borderX = -1;
-    if (drawBar(FILESYS_W + 2, &barWidth, &borderX))
+    if (drawBar(0, &barWidth, &borderX))
     {
         buffAppend(borderColor);
         for (int i = 0; i < barWidth; i++) {
-           if (i == borderX)
+           if (i == borderX-1)
                 buffAppend("┴");
           else
                 buffAppend("─");
@@ -70,14 +72,11 @@ void draw() {
         drawRow(i, 0);
     }
 
-    int offX = showLineNums ? LINENUM_W : 0;
-
-    char cursorMoveBuffer[64];
-    sprintf(cursorMoveBuffer, "\x1b[%d;%dH", cy - rowOffset + 1, cx + offX + 1);
-    buffAppend(cursorMoveBuffer);
-
-    write(STDOUT_FILENO, buffChars, buffLength);
-    fflush(stdout);
+    int offX = (showLineNums && !renamingFile) ? LINENUM_W-1 : 0;
+    if (renamingFile)
+        offX++;
+    int offY = barWidth > 0 ? BAR_H : 0;
+    completeDrawing(offX, offY);
 }
 
 void drawWithFilesys() {
@@ -95,7 +94,7 @@ void drawWithFilesys() {
         buffFillAppend(' ', emptySpace);
 
     buffAppend(borderColor);
-    buffAppend("│ ");
+    buffAppend("│");
 
     int barWidth = -1;
     int borderX = -1;
@@ -146,9 +145,11 @@ void drawWithFilesys() {
         }
     }
     
-    int offX = showLineNums ? (FILESYS_W + LINENUM_W + 1) : (FILESYS_W + 2);
+    int offX = (showLineNums && !renamingFile) ? (FILESYS_W + LINENUM_W + 1) : (FILESYS_W + 2);
+    if (renamingFile)
+        offX++;
     int offY = barWidth > 0 ? BAR_H : 0;
-    completeDrawing(FILESYS_W + 2, offX, offY);
+    completeDrawing(offX, offY);
 }
 
 void drawRow(int i, int xOff) {
@@ -171,7 +172,40 @@ void drawRow(int i, int xOff) {
     int textSpace = tw - xOff;
     int visibleLength = MIN(r.length, textSpace);
 
-    if (!selected1 || !selected2)
+    if (renameSymbolMode > 0)
+    {
+        int *symbolPositionsX = malloc((int) r.length/originalSymbolLength + 1);
+        int spxi = 0;
+        for (int i = 0; i < symbolPosCount; i++)
+        {
+            if (symbolPositions[i].y == ri)
+            {
+                symbolPositionsX[spxi] = symbolPositions[i].x;
+                spxi++;
+            }
+        }
+
+        int lastX = 0;
+        for (int i = 0; i < spxi; i++)
+        {
+            int x = symbolPositionsX[i];
+            if (x >= visibleLength)
+                break;
+            if (x > lastX)
+                buffAppendN(r.chars + lastX, x - lastX);
+
+            buffAppend(renameSymbolBackground);
+            if (newSymbolBufferLength > 0)
+                buffAppendN(newSymbolBuffer, newSymbolBufferLength);
+
+            buffAppend(colorReset);
+            lastX = x + originalSymbolLength;
+        }
+
+        if (lastX < visibleLength)
+            buffAppendN(r.chars + lastX, visibleLength - lastX);
+    }
+    else if (!selected1 || !selected2)
     {
         buffAppendN(r.chars, visibleLength);
     }
@@ -245,12 +279,14 @@ bool drawBar(int xOff, int *pBarWidth, int *pBorderX) {
     if (showOpenFile)
     {
         int openFileLength;
+        buffAppend(" ");
         buffAppend(openFileColor);
         if (renamingFile)
         {        
             buffAppend(renamingFileBackground);
-            buffAppendN(renameFileBuffer, renameFileBufferI);
+            buffAppendN(renameFileBuffer, renameFileBufferLength);
             openFileLength = renameFileBufferI;
+            buffAppend(colorReset);
         } else {
             buffAppendN(dirFiles[openFileI], MIN(strlen(dirFiles[openFileI]), openFileSpace));
             openFileLength = strlen(dirFiles[openFileI]);
@@ -259,7 +295,7 @@ bool drawBar(int xOff, int *pBarWidth, int *pBorderX) {
         if (showInfoText)
         {
             if (openFileSpace > openFileLength)
-            buffFillAppend(' ', openFileSpace - openFileLength);
+                buffFillAppend(' ', openFileSpace - openFileLength);
             buffAppend(borderColor);
             buffAppend("│ ");
         }
@@ -314,10 +350,13 @@ void startDrawing() {
     buffAppend("\x1b[2J\x1b[H\x1b[?25l");
 }
 
-void completeDrawing(int barXOff, int xOff, int yOff) {
+void completeDrawing(int xOff, int yOff) {
+
     char cursorMoveBuffer[64];
     if (renamingFile)
-        sprintf(cursorMoveBuffer, "\x1b[1;%dH", FILESYS_W + 3 + renameFileBufferI);
+        sprintf(cursorMoveBuffer, "\x1b[1;%dH", xOff + renameFileBufferI);
+    else if (renameSymbolMode > 0)
+        sprintf(cursorMoveBuffer, "\x1b[%d;%dH", originalY + yOff + 1, xOff + originalX + newSymbolBufferI + 1);
     else
         sprintf(cursorMoveBuffer, "\x1b[%d;%dH", cy - rowOffset + yOff + 1, cx + xOff + 1);
     buffAppend(cursorMoveBuffer);

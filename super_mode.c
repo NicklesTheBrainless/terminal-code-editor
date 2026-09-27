@@ -39,8 +39,9 @@ void handleSuperKey(char c) {
         break;
 
     case 'q':
+        bool before1 = selected1;
         selected1 = true;
-        if (selection.x1 == cx && selection.y1 == cy)
+        if (selection.x1 == cx && selection.y1 == cy && before1)
         {
             selection.x1 = 0;
             break;
@@ -49,8 +50,9 @@ void handleSuperKey(char c) {
         selection.y1 = cy;
         break;
     case 'e':
+        bool before2 = selected2;
         selected2 = true;
-        if (selection.x2 == cx && selection.y2 == cy)
+        if (selection.x2 == cx && selection.y2 == cy && before2)
         {
             selection.x2 = rows[cy].length-1;
             break;
@@ -107,11 +109,26 @@ void handleSuperKey(char c) {
     case 'f':
         if (!selected1 || !selected2)
             break;
-        if (selection.y1 != selection.y2)
+        if (selection.y1 != selection.y2) {
+            sprintf(infoText, "find occurrences does not work with multiline selection");
             break;
+        }
+
+        Row sr = rows[selection.y1];
 
         startX = MIN(selection.x1, selection.x2);
         endX = MAX(selection.x1, selection.x2) + 1;
+        char beforeChar = 0;
+        char afterChar = 0;
+        if (startX-1 >= 0)
+            beforeChar = sr.chars[startX-1];
+        if (endX < sr.length)
+            afterChar = sr.chars[endX];
+        if (isVariableNameChar(beforeChar) || isVariableNameChar(beforeChar)) {
+            sprintf(infoText, "find occurrences only works with whole symbols %c %c", beforeChar, afterChar);    
+            break;
+        }
+
         originalSymbol = malloc(endX - startX + 1);
         if (originalSymbol == NULL)
         {
@@ -121,20 +138,27 @@ void handleSuperKey(char c) {
         originalSymbolLength = endX - startX;
         originalSymbol[originalSymbolLength] = '\0';
 
+        originalX = startX;
+        originalY = selection.y1;
+
+        memcpy(newSymbolBuffer, originalSymbol, originalSymbolLength);
+        newSymbolBufferLength = originalSymbolLength;
+        newSymbolBufferI = originalSymbolLength;
+
         if (renameSymbolMode >= 3)
             renameSymbolMode = 1;
         else
             renameSymbolMode++;
 
         if (renameSymbolMode == 1) {
-            selectAllInCurrentScope(startX, selection.y1);
-            sprintf(infoText, "found %d occurrences of %s in current scope", symbolPosCount, originalSymbol);
+            selectAllInCurrentScope();
+            sprintf(infoText, "found %d occurrences of \"%s\" in current scope", symbolPosCount, originalSymbol);
         } else if (renameSymbolMode == 2) {
             selectAllInCurrentFile();
-            sprintf(infoText, "found %d occurrences of %s in current file", symbolPosCount, originalSymbol);
+            sprintf(infoText, "found %d occurrences of \"%s\" in current file", symbolPosCount, originalSymbol);
         } else if (renameSymbolMode == 3) {
             selectAllInWorkingDir();
-            sprintf(infoText, "found %d occurrences of %s in working directory", symbolPosCount, originalSymbol);
+            sprintf(infoText, "found %d occurrences of \"%s\" in working directory", symbolPosCount, originalSymbol);
         }
         break;
     }

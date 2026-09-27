@@ -7,4 +7,6 @@ extern volatile sig_atomic_t terminalResized;
 void draw();
 void drawWithFilesys();
 
+void buffAlloc();
+
 void handleResize(int signal);

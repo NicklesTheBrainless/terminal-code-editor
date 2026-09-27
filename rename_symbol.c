@@ -30,7 +30,7 @@ void handleInputRenameSymbol(char c) {
             if (newSymbolBufferI > 0)
                 newSymbolBufferI--;
         } else if (rck == MOVE_RIGHT) {
-            if (newSymbolBufferI < newSymbolBufferLength-1)
+            if (newSymbolBufferI < newSymbolBufferLength)
                 newSymbolBufferI++;
         }
         return;
@@ -38,6 +38,8 @@ void handleInputRenameSymbol(char c) {
         if (newSymbolBufferLength > 0) {
             replaceAllSymbolPos();
         }
+        cx = MIN(selection.x1, selection.x2) + newSymbolBufferLength;
+        cy = selection.y1;
         renameSymbolMode = 0;
         newSymbolBufferLength = 0;
         newSymbolBufferI = 0;
@@ -59,7 +61,6 @@ void handleInputRenameSymbol(char c) {
         newSymbolBufferLength++;
         newSymbolBufferI++;
     }
-
 }
 
 void replaceAllSymbolPos() {
@@ -82,14 +83,14 @@ void replaceAllSymbolPos() {
 
 
 
-void selectAllInCurrentScope(int originalX, int originalY) {
+void selectAllInCurrentScope() {
 
     int currentBracesLevel = 0;
     int stopSearching = false;
-    for (int y = selection.y1; y < rowsCount; y++)
+    for (int y = originalY; y < rowsCount; y++)
     {
         Row r = rows[y];
-        for (int x = 0; x < r.length; x++)
+        for (int x = originalX; x < r.length; x++)
         {
             if (r.chars[x] == '{')
                 currentBracesLevel++;
@@ -100,6 +101,15 @@ void selectAllInCurrentScope(int originalX, int originalY) {
                 break;
 
             if (x + originalSymbolLength > r.length)
+                continue;
+            
+            char beforeChar = 0;
+            char afterChar = 0;
+            if (originalX-1 >= 0)
+                beforeChar = r.chars[originalX-1];
+            if (originalX+originalSymbolLength < r.length)
+                afterChar = r.chars[originalX+originalSymbolLength];
+            if (isVariableNameChar(beforeChar) || isVariableNameChar(afterChar))
                 continue;
 
             bool isSymbol = true;
@@ -118,6 +128,7 @@ void selectAllInCurrentScope(int originalX, int originalY) {
                 symbolPosCount++;
                 if (symbolPosCount >= MAX_SYMBOL_POS_COUNT)
                     stopSearching = true;
+                x += originalSymbolLength-1;
             }
         }
 

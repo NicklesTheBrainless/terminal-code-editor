@@ -36,6 +36,8 @@ extern int renameSymbolMode;
 
 extern char *originalSymbol;
 extern int originalSymbolLength;
+extern int originalX;
+extern int originalY;
 
 extern char newSymbolBuffer[MAX_RENAME_LENGTH];
 extern int newSymbolBufferLength;

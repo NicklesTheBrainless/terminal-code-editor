@@ -2,6 +2,6 @@
 void handleInputRenameSymbol(char c);
 void replaceAllSymbolPos();
 
-void selectAllInCurrentScope(int originalX, int originalY);
+void selectAllInCurrentScope();
 void selectAllInCurrentFile();
 void selectAllInWorkingDir();

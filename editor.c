@@ -35,6 +35,8 @@ int renameSymbolMode = 0;
 
 char *originalSymbol;
 int originalSymbolLength = 0;
+int originalX;
+int originalY;
 
 char newSymbolBuffer[MAX_RENAME_LENGTH];
 int newSymbolBufferLength = 0;
@@ -65,6 +67,7 @@ int main() {
     rows = readFileAsRows(dirFiles[openFileI], &rowsCount, &rowsCap);
     
     sprintf(infoText, "write mode");
+    buffAlloc();
     drawWithFilesys();
 
     signal(SIGWINCH, handleResize);
@@ -90,7 +93,6 @@ int main() {
 
     disableRawMode();
     printf("\x1b[2J\x1b[?1049l");
-    
 }
 
 

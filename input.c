@@ -34,7 +34,7 @@ void handleInput(char c) {
                 if (renameFileBufferI > 0)
                     renameFileBufferI--;
             } else if (rck == MOVE_RIGHT) {
-                if (renameFileBufferI < renameFileBufferLength-1)
+                if (renameFileBufferI < renameFileBufferLength)
                     renameFileBufferI++;
             }
             return;
@@ -71,6 +71,8 @@ void handleInput(char c) {
             renameFileBuffer[renameFileBufferI] = c;
             renameFileBufferLength++;
             renameFileBufferI++;
+        } else if(c == 'q' & 0x1F) {
+            quit = true;
         }
         return;
     }
@@ -254,7 +256,7 @@ void handleAlt(char c) {
         saveRowsAsFile(dirFiles[openFileI], rows, rowsCount);
         break;
     case 'r':
-        if (withFilesys)
+        if (showOpenFile)
             renamingFile = true;
         break;
     
@@ -264,6 +266,7 @@ void handleAlt(char c) {
         break;
     case 'g':
         filesysMode = !filesysMode;
+        selectedFileI = openFileI;
         break;
 
     case 'i':
@@ -303,6 +306,14 @@ RenameControlKey getRenameControlKey() {
     }
 
     return NONE;
+}
+
+bool isVariableNameChar(char c) {
+
+    if ( (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122))
+        return true;
+    else
+        return false;
 }
 
 
