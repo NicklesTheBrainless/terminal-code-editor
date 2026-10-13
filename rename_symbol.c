@@ -1,10 +1,10 @@
 #include "rename_symbol.h"
 
-#include "editor.h"
-#include "input.h"
-#include "super_mode.h"
-
 #include <ctype.h>
+
+Pos **dirSymbolPositions = NULL;
+int *dirSymbolsPosCounts = NULL;
+int oldDirFilesCount;
 
 void handleInputRenameSymbol(char c) {
 
@@ -36,7 +36,28 @@ void handleInputRenameSymbol(char c) {
         return;
     } else if (c == '\n') {
         if (newSymbolBufferLength > 0) {
-            replaceAllSymbolPos();
+            if (renameSymbolMode == 3)
+            {
+                for (int i = 0; i < dirFilesCount; i++)
+                {
+                    int writeRowsCount;
+                    int writeRowsCap;
+                    Row* writeRows;
+                    if (i == openFileI)
+                    {
+                        writeRows = rows;
+                        writeRowsCount = rowsCount;
+                    } else {
+                        writeRows = readFileAsRows(dirFiles[i], &writeRowsCount, &writeRowsCap);
+                    }
+                    
+                    replaceAllGivenSymbolPos(writeRows, &rowsCount, dirSymbolPositions[i], dirSymbolsPosCounts[i]);
+                    saveRowsAsFile(dirFiles[i], writeRows, rowsCount);
+                }
+
+            } else {
+                replaceAllGivenSymbolPos(rows, &rowsCount, symbolPositions, symbolPosCount);
+            }
         }
         cx = MIN(selection.x1, selection.x2) + newSymbolBufferLength;
         cy = selection.y1;
@@ -63,19 +84,19 @@ void handleInputRenameSymbol(char c) {
     }
 }
 
-void replaceAllSymbolPos() {
+void replaceAllGivenSymbolPos(Row *_rows, int *p_rowsCount, Pos *givenSymbolPositions, int givenSymbolPosCount) {
     int currentY = -1;
     int currentOffsetX = 0;
-    for (int i = 0; i < symbolPosCount; i++)
+    for (int i = 0; i < givenSymbolPosCount; i++)
     {
-        Pos sp = symbolPositions[i];
+        Pos sp = givenSymbolPositions[i];
         if (currentY != sp.y) {
             currentY = sp.y;
             currentOffsetX = 0;
         }
 
-        deleteText(sp.x + currentOffsetX, sp.y, sp.x + originalSymbolLength + currentOffsetX, sp.y);
-        writeToRow(sp.x + currentOffsetX, sp.y, newSymbolBuffer, newSymbolBufferLength);
+        deleteTextHelper(_rows, p_rowsCount, sp.x + currentOffsetX, sp.y, sp.x + originalSymbolLength + currentOffsetX, sp.y);
+        writeToRowHelper(_rows, sp.x + currentOffsetX, sp.y, newSymbolBuffer, newSymbolBufferLength);
         
         currentOffsetX += newSymbolBufferLength - originalSymbolLength;
     }
@@ -126,8 +147,10 @@ void selectAllInCurrentScope() {
                 symbolPositions[symbolPosCount].x = x;
                 symbolPositions[symbolPosCount].y = y;
                 symbolPosCount++;
-                if (symbolPosCount >= MAX_SYMBOL_POS_COUNT)
+                if (symbolPosCount >= MAX_SYMBOL_POS_COUNT) {
                     stopSearching = true;
+                    break;
+                }
                 x += originalSymbolLength-1;
             }
         }
@@ -138,11 +161,79 @@ void selectAllInCurrentScope() {
 }
 
 void selectAllInCurrentFile() {
-    for (int y = 0; y < rowsCount; y++)
+    selectAllInSearchRows(rows, rowsCount, symbolPositions, &symbolPosCount);
+}
+
+void selectAllInWorkingDir() {
+
+    if (dirSymbolPositions != NULL)
     {
-        Row r = rows[y];
+        for (int i = 0; i < oldDirFilesCount; i++)
+            free(dirSymbolPositions[i]);
+        free(dirSymbolPositions);
+        free(dirSymbolsPosCounts);
+    }
+
+    ERROR("after free");
+
+    dirSymbolPositions = malloc(dirFilesCount * sizeof(Pos*));
+    for (int i = 0; i < dirFilesCount; i++)
+    {
+        dirSymbolPositions[i] = malloc(MAX_SYMBOL_POS_COUNT * sizeof(Pos));
+        if (dirSymbolPositions[i] == NULL)
+        {
+            ERROR_EXIT("malloc failed");
+        }
+    }
+    dirSymbolsPosCounts = malloc(dirFilesCount * sizeof(int));
+    oldDirFilesCount = dirFilesCount;
+
+    ERROR("after malloc");
+
+    for (int i = 0; i < dirFilesCount; i++)
+    {
+        int readRowsCount;
+        int readRowsCap;
+        Row* readRows = readFileAsRows(dirFiles[i], &readRowsCount, &readRowsCap);
+        ERROR("after read");
+        dirSymbolsPosCounts[i] = 0;
+        selectAllInSearchRows(readRows, readRowsCount, dirSymbolPositions[i], &(dirSymbolsPosCounts[i]));
+        ERROR("after select");
+        fprintf(stderr, "%d\n", dirSymbolsPosCounts[i]);
+        globalSymbolPosCount += dirSymbolsPosCounts[i];
+        ERROR("loop read");
+    }
+
+    ERROR("after read loop, before end");
+
+    memcpy(symbolPositions, dirSymbolPositions[openFileI], dirSymbolsPosCounts[openFileI]);
+    symbolPosCount = dirSymbolsPosCounts[openFileI];
+
+    ERROR("search end");
+}
+
+void selectAllInSearchRows(Row* sRows, int sRowsCount, Pos *symbolPositionsBuffer, int *pSymbolPosCount) {
+    bool stopSearching = false;
+    for (int y = 0; y < sRowsCount; y++)
+    {
+        Row r = sRows[y];
+        ERROR("got row");
         for (int x = 0; x < r.length; x++)
         {
+            if (x + originalSymbolLength > r.length)
+                continue;
+            
+            char beforeChar = 0;
+            char afterChar = 0;
+            if (x-1 >= 0)
+                beforeChar = r.chars[x-1];
+            if (x+originalSymbolLength < r.length)
+                afterChar = r.chars[x+originalSymbolLength];
+            if (isVariableNameChar(beforeChar) || isVariableNameChar(afterChar))
+                continue;
+
+            ERROR("after char check");
+
             bool isSymbol = true;
             for (int i = 0; i < originalSymbolLength; i++)
             {
@@ -152,16 +243,24 @@ void selectAllInCurrentFile() {
                 }
             }
 
+            ERROR("match check");
+
             if (isSymbol)
             {
-                symbolPositions[symbolPosCount].x = x;
-                symbolPositions[symbolPosCount].y = y;
-                symbolPosCount++;
+                ERROR("is symbol start");
+                symbolPositionsBuffer[*pSymbolPosCount].x = x;
+                symbolPositionsBuffer[*pSymbolPosCount].y = y;
+                (*pSymbolPosCount)++;
+                if (*pSymbolPosCount >= MAX_SYMBOL_POS_COUNT) {
+                    stopSearching = true;
+                    break;
+                }
+                x += originalSymbolLength-1;
+                ERROR("is symbol end");
             }
         }
+
+        if (stopSearching)
+            break;
     }
-}
-
-void selectAllInWorkingDir() {
-
 }

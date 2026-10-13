@@ -27,6 +27,8 @@ int buffCap;
 int tw, th = 0;
 volatile sig_atomic_t terminalResized = 1;
 
+int symbolRowPositionsX[1024];
+
 void drawRow(int i, int xOff);
 bool drawBar(int xOff, int *barWidth, int *borderX);
 void drawFileSide(int fi);
@@ -174,21 +176,22 @@ void drawRow(int i, int xOff) {
 
     if (renameSymbolMode > 0)
     {
-        int *symbolPositionsX = malloc((int) r.length/originalSymbolLength + 1);
-        int spxi = 0;
+        int srpxi = 0;
         for (int i = 0; i < symbolPosCount; i++)
         {
             if (symbolPositions[i].y == ri)
             {
-                symbolPositionsX[spxi] = symbolPositions[i].x;
-                spxi++;
+                symbolRowPositionsX[srpxi] = symbolPositions[i].x;
+                srpxi++;
+                if (srpxi >= 1024)
+                    break; 
             }
         }
 
         int lastX = 0;
-        for (int i = 0; i < spxi; i++)
+        for (int i = 0; i < srpxi; i++)
         {
-            int x = symbolPositionsX[i];
+            int x = symbolRowPositionsX[i];
             if (x >= visibleLength)
                 break;
             if (x > lastX)

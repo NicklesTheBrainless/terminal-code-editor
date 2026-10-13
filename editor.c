@@ -7,7 +7,7 @@ char *workingDir;
 char **dirFiles;
 int dirFilesCount;
 
-int openFileI = 1;
+int openFileI = 0;
 int selectedFileI = 0;
 
 bool showLineNums = true;
@@ -44,6 +44,7 @@ int newSymbolBufferI = 0;
 
 Pos symbolPositions[MAX_SYMBOL_POS_COUNT];
 int symbolPosCount = 0;
+int globalSymbolPosCount = 0;
 
 Row *clipboardRows = NULL;
 int cbrCount;
@@ -97,9 +98,9 @@ int main() {
 
 
 
-void writeToRow(int x, int y, char *s, int n) {
+void writeToRowHelper(Row * _rows, int x, int y, char *s, int n) {
 
-    Row r = rows[y];
+    Row r = _rows[y];
 
     if (r.length + n >= r.cap) {
         r.cap += n + 64;
@@ -113,13 +114,13 @@ void writeToRow(int x, int y, char *s, int n) {
         memmove(r.chars + x + n, r.chars + x, r.length - x);
     memcpy(r.chars + x, s, n);
     r.length += n;
-    rows[y] = r;
+    _rows[y] = r;
 }
 
-void deleteText(int startX, int startY, int endX, int endY) {
+void deleteTextHelper(Row * _rows, int *p_rowsCount, int startX, int startY, int endX, int endY) {
     if (startY == endY)
     {
-        Row *row = &rows[startY];
+        Row *row = &_rows[startY];
 
         int selectedLength = endX - startX;
         if (endX < row->length)
@@ -146,12 +147,23 @@ void deleteText(int startX, int startY, int endX, int endY) {
         startRow->length = newLength;
 
         for (int i = startY + 1; i <= endY; i++)
-            free(rows[i].chars);
+            free(_rows[i].chars);
 
-        memmove(&rows[startY + 1], &rows[endY + 1], (rowsCount - endY - 1) * sizeof(Row));
-        rowsCount -= endY - startY;
+        memmove(&_rows[startY + 1], &_rows[endY + 1], (*p_rowsCount - endY - 1) * sizeof(Row));
+        *p_rowsCount -= endY - startY;
     }
 }
+
+void writeToRow(int x, int y, char *s, int n) {
+    writeToRowHelper(rows, x, y, s, n);
+}
+
+void deleteText(int startX, int startY, int endX, int endY) {
+    deleteTextHelper(rows, &rowsCount, startX, startY, endX, endY);
+}
+
+
+
 
 void freeRows() {
     for (int i = 0; i < rowsCount; i++)

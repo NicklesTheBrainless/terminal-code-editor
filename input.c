@@ -139,8 +139,14 @@ void handleEscSeq()
             break;
 
         case 'Z':
-            if (!filesysMode)
-                superMode = !superMode;
+            if (!filesysMode) {
+                Row r = rows[cy];
+                if (r.length >= 4 && strncmp(r.chars, "    ", 4) == 0)
+                {
+                    memmove(r.chars, r.chars + 4, r.length - 4);
+                    r.length -= 4;
+                }
+            }
             break;
     }
 
@@ -267,6 +273,11 @@ void handleAlt(char c) {
     case 'g':
         filesysMode = !filesysMode;
         selectedFileI = openFileI;
+        break;
+
+    case 'z': case '`':
+        if (!filesysMode)
+            superMode = !superMode;
         break;
 
     case 'i':

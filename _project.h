@@ -17,7 +17,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define ERROR(s) fprintf(stderr, "Error at %s:%d: %s", __FILE__, __LINE__, s); fflush(stderr)
+#define ERROR(s) fprintf(stderr, "Error at %s:%d: %s\n", __FILE__, __LINE__, s); fflush(stderr)
 #define ERROR_EXIT(s) fprintf(stderr, "Error at %s:%d: %s", __FILE__, __LINE__, s); fflush(stderr); exit(EXIT_FAILURE)
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))

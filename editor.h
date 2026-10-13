@@ -45,6 +45,7 @@ extern int newSymbolBufferI;
 
 extern Pos symbolPositions[MAX_SYMBOL_POS_COUNT];
 extern int symbolPosCount;
+extern int globalSymbolPosCount;
 
 extern Row *clipboardRows;
 extern int cbrCount;
@@ -58,6 +59,8 @@ extern int cx;
 extern int cy;
 extern int rowOffset;
 
+void writeToRowHelper(Row * _rows, int x, int y, char *s, int n);
+void deleteTextHelper(Row * _rows, int *p_rowsCount, int startX, int startY, int endX, int endY);
 void writeToRow(int x, int y, char *s, int n);
 void deleteText(int startX, int startY, int endX, int endY);
 void freeRows();

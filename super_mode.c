@@ -118,6 +118,7 @@ void handleSuperKey(char c) {
 
         startX = MIN(selection.x1, selection.x2);
         endX = MAX(selection.x1, selection.x2) + 1;
+        
         char beforeChar = 0;
         char afterChar = 0;
         if (startX-1 >= 0)
@@ -145,10 +146,14 @@ void handleSuperKey(char c) {
         newSymbolBufferLength = originalSymbolLength;
         newSymbolBufferI = originalSymbolLength;
 
+        symbolPosCount = 0;
+
         if (renameSymbolMode >= 3)
             renameSymbolMode = 1;
         else
             renameSymbolMode++;
+
+        ERROR("crtl f input, before search");
 
         if (renameSymbolMode == 1) {
             selectAllInCurrentScope();
@@ -158,7 +163,7 @@ void handleSuperKey(char c) {
             sprintf(infoText, "found %d occurrences of \"%s\" in current file", symbolPosCount, originalSymbol);
         } else if (renameSymbolMode == 3) {
             selectAllInWorkingDir();
-            sprintf(infoText, "found %d occurrences of \"%s\" in working directory", symbolPosCount, originalSymbol);
+            sprintf(infoText, "found %d occurrences of \"%s\" in working directory", globalSymbolPosCount, originalSymbol);
         }
         break;
     }
